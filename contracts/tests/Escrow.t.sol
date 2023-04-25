@@ -100,7 +100,7 @@ contract EscrowTest is Test {
         hoax(address(0xf1c0));
         escrow.enableCollateral(address(supportedToken1));
     }
-
+    // 能够正确获得抵押品的数据：总价值
     function test_can_get_correct_collateral_value() public {
         escrow.addCollateral(mintAmount, address(supportedToken1));
         uint collateralValue = escrow.getCollateralValue();

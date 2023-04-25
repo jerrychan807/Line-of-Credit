@@ -86,11 +86,13 @@ contract SecuredLine is SpigotedLine, EscrowedLine, ISecuredLine {
     returns(uint256)
   {
     if(msg.sender != arbiter) { revert CallerAccessDenied(); }
+      // 状态要为LIQUIDATABLE
     if(_updateStatus(_healthcheck()) != LineLib.STATUS.LIQUIDATABLE) {
       revert NotLiquidatable();
     }
 
     // send tokens to arbiter for OTC sales
+      // 把token发给仲裁者 再进行场外交易
     return _liquidate(ids[0], amount, targetToken, msg.sender);
   }
 

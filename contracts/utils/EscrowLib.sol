@@ -33,7 +33,9 @@ library EscrowLib {
     */
     function _getLatestCollateralRatio(EscrowState storage self, address oracle) public returns (uint256) {
         (uint256 principal, uint256 interest) = ILineOfCredit(self.line).updateOutstandingDebt();
+        // 债务总价值
         uint256 debtValue =  principal + interest;
+        // 抵押物总价值
         uint256 collateralValue = _getCollateralValue(self, oracle);
         if (debtValue == 0) return MAX_INT;
         if (collateralValue == 0) return 0;
@@ -51,6 +53,7 @@ library EscrowLib {
     function _getCollateralValue(EscrowState storage self, address oracle) public returns (uint256) {
         uint256 collateralValue;
         // gas savings
+        // ??? @audit 抵押品token数量长度
         uint256 length = self.collateralTokens.length;
         IOracle o = IOracle(oracle); 
         IEscrow.Deposit memory d;
@@ -87,7 +90,7 @@ library EscrowLib {
     function addCollateral(EscrowState storage self, address oracle, uint256 amount, address token)
         external
         returns (uint256)
-    {
+    { // @audit 限制借款人角色???
         require(amount > 0);
         if(!self.enabled[token])  { revert InvalidCollateral(); }
 
@@ -107,7 +110,7 @@ library EscrowLib {
         bool isEnabled = self.enabled[token];
         IEscrow.Deposit memory deposit = self.deposited[token]; // gas savings
         if (!isEnabled) {
-            if (token == Denominations.ETH) {
+            if (token == Denominations.ETH) { // ETH
                 // enable native eth support
                 deposit.asset = Denominations.ETH;
                 deposit.assetDecimals = 18;
@@ -115,19 +118,19 @@ library EscrowLib {
                 (bool passed, bytes memory tokenAddrBytes) = token.call(
                     abi.encodeWithSignature("asset()")
                 );
-
+                // 判断是否是4626协议
                 bool is4626 = tokenAddrBytes.length > 0 && passed;
                 deposit.isERC4626 = is4626;
                 // if 4626 save the underlying token to use for oracle pricing
                 deposit.asset = !is4626
                     ? token
                     : abi.decode(tokenAddrBytes, (address));
-
+                // oracle要能够获取价格
                 int256 price = IOracle(oracle).getLatestAnswer(deposit.asset);
                 if (price <= 0) {
                     revert InvalidCollateral();
                 }
-
+                // 获取精度
                 (bool successDecimals, bytes memory decimalBytes) = deposit
                     .asset
                     .call(abi.encodeWithSignature("decimals()"));
@@ -162,7 +165,7 @@ library EscrowLib {
         if(msg.sender != borrower) { revert CallerAccessDenied(); }
         if(self.deposited[token].amount < amount) { revert InvalidCollateral(); }
         self.deposited[token].amount -= amount;
-        
+        // @audit 重入风险
         LineLib.sendOutTokenOrETH(token, to, amount);
 
         uint256 cratio = _getLatestCollateralRatio(self, oracle);

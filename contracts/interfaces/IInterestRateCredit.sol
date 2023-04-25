@@ -6,6 +6,7 @@ interface IInterestRateCredit {
     // in bps, 4 decimals
     uint128 dRate;
     // The interest rate charged to a Borrower on the remaining funds available, but not yet drawn down (rate charged on the available headroom)
+    // 对借款人可用但尚未提取的剩余资金收取的利率(根据可用净空收取的利率)
     // in bps, 4 decimals
     uint128 fRate;
     // The time stamp at which accrued interest was last calculated on an ID and then added to the overall interestAccrued (interest due but not yet repaid)

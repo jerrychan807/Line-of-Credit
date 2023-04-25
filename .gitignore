@@ -12,3 +12,16 @@ artifacts
 
 #dapp tools 
 hevm.libs.*
+
+
+# hardhat
+*/artifacts/*
+*/cache/*
+*/deployments/*
+
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr

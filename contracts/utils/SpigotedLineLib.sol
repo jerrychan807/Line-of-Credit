@@ -19,7 +19,7 @@ library SpigotedLineLib {
     error BadTradingPair();
 
     error CallerAccessDenied();
-    
+
     error ReleaseSpigotFailed();
 
     error NotInsolvent(address module);
@@ -58,16 +58,17 @@ library SpigotedLineLib {
         uint256 unused,
         bytes calldata zeroExTradeData
     )
-        external 
+        external
         returns(uint256, uint256)
     {
         // can't trade into same token. causes double count for unused tokens
         if(claimToken == targetToken) { revert BadTradingPair(); }
 
         // snapshot token balances now to diff after trade executes
+        // 记录使用token和目标token的数量
         uint256 oldClaimTokens = LineLib.getBalance(claimToken);
         uint256 oldTargetTokens = LineLib.getBalance(targetToken);
-        
+
         // @dev claim has to be called after we get balance
         // reverts if there are no tokens to claim
         uint256 claimed = ISpigot(spigot).claimEscrow(claimToken);
@@ -78,8 +79,9 @@ library SpigotedLineLib {
             swapTarget,
             zeroExTradeData
         );
-        
+
         // underflow revert ensures we have more tokens than we started with
+        // 记录兑换 目标token的数量
         uint256 tokensBought = LineLib.getBalance(targetToken) - oldTargetTokens;
 
         if(tokensBought == 0) { revert TradeFailed(); } // ensure tokens bought
@@ -97,12 +99,14 @@ library SpigotedLineLib {
         );
 
         // used reserve revenue to repay debt
+        // 消耗了ClaimToken
         if(oldClaimTokens > newClaimTokens) {
-          uint256 diff = oldClaimTokens - newClaimTokens;
-
+          uint256 diff = oldClaimTokens - newClaimTokens;// 消耗的信用代币
           // used more tokens than we had in revenue reserves.
           // prevent borrower from pulling idle lender funds to repay other lenders
-          if(diff > unused) revert UsedExcessTokens(claimToken,  unused); 
+            //我们使用的代币比我们的收入储备还多。
+            //防止借款方动用闲置的借款方资金偿还其他借款方 ???
+          if(diff > unused) revert UsedExcessTokens(claimToken,  unused);
           // reduce reserves by consumed amount
           else return (
             tokensBought,
@@ -122,7 +126,7 @@ library SpigotedLineLib {
         address sellToken,
         address payable swapTarget,
         bytes calldata zeroExTradeData
-    ) 
+    )
         public
         returns(bool)
     {

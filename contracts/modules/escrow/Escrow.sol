@@ -146,6 +146,7 @@ contract Escrow is IEscrow {
      * @param to - the address to receive the funds
      * @return - true if successful
      */
+    // @audit 要求是低于抵押线,但债务人好像是可以直接清算的
     function liquidate(
         uint256 amount,
         address token,

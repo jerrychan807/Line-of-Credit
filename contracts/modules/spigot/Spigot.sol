@@ -24,9 +24,12 @@ contract Spigot is ISpigot, ReentrancyGuard {
      * @notice          - Configure data for Spigot stakeholders
                         - Owner/operator/treasury can all be the same address when setting up a Spigot
      * @param _owner    - An address that controls the Spigot and owns rights to some or all tokens earned by owned revenue contracts
+     // 一个控制Spigot的地址，有控制收入合同代币的权限
      * @param _treasury - A non-active address for non-Owner that receives revenue tokens that aren't allocated and escrowed for the Owner
+     // 用于接收未为所有者分配和托管的收入令牌
      * @param _operator - An active address for non-Owner that can execute whitelisted functions to manage and maintain product operations
                           on revenue generating contracts controlled by the Spigot.
+     // 可以执行白名单功能，以管理和维护由Spigot控制的创收合同上的产品操作。
      */
     constructor (
         address _owner,
@@ -57,6 +60,8 @@ contract Spigot is ISpigot, ReentrancyGuard {
     /**
 
      * @notice - Claims revenue tokens from the Spigot (push and pull payments) and escrows them for the Owner withdraw later.
+     索取收入代币并使其可用于以后提取以偿还债务。
+     从Spigot中索取收入代币(推拉支付)，并托管它们供所有者稍后提取。
                - Calls predefined function in contract settings to claim revenue.
                - Automatically sends portion to Treasury and then escrows Owner's share
                - There is no conversion or trade of revenue tokens. 
@@ -80,7 +85,6 @@ contract Spigot is ISpigot, ReentrancyGuard {
      * @dev - callable by `owner`
      * @param token - address of revenue token that is being escrowed by spigot
      * @return claimed -  The amount of tokens claimed by the `owner`
-
     */
     function claimEscrow(address token)
         external
@@ -89,7 +93,6 @@ contract Spigot is ISpigot, ReentrancyGuard {
     {
         return state.claimEscrow(token);
     }
-
 
     // ##########################
     // ##### *ring* *ring*  #####
@@ -122,6 +125,7 @@ contract Spigot is ISpigot, ReentrancyGuard {
      * @param revenueContract - smart contract to claim tokens from
      * @param setting - Spigot settings for smart contract   
      */
+    // 添加水龙头,收入合约
     function addSpigot(address revenueContract, Setting memory setting) external returns (bool) {
         return state.addSpigot(revenueContract, setting);
     }

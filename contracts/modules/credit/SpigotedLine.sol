@@ -110,18 +110,19 @@ contract SpigotedLine is ISpigotedLine, LineOfCredit, ReentrancyGuard {
               credit.token,
               zeroExTradeData
           );
-
+        // 当前信用代币余额
         uint256 repaid = newTokens + unusedTokens[credit.token];
         uint256 debt = credit.interestAccrued + credit.principal;
-
+        // 债务 = 本金+利息
         // cap payment to debt value
-        if (repaid > debt) repaid = debt;
+        // @audit ??? 多余的repaid???
+        if (repaid > debt) repaid = debt; // 信用代币余额>债务,还款数量为债务数量
         // update unused amount based on usage
-        if (repaid > newTokens) {
+        if (repaid > newTokens) { // 说明有未使用的信用代币
             // using bought + unused to repay line
-            unusedTokens[credit.token] -= repaid - newTokens;
+            unusedTokens[credit.token] -= repaid - newTokens; // 更新未使用信用代币的余额
         } else {
-            // high revenue and bought more than we need
+            // high revenue and bought more than we need // 未使用的信用代币余额 增加了
             unusedTokens[credit.token] += newTokens - repaid;
         }
 
@@ -202,6 +203,7 @@ contract SpigotedLine is ISpigotedLine, LineOfCredit, ReentrancyGuard {
         );
 
         // we dont use revenue after this so can store now
+        // 记录当前的未使用的收入代币数量
         unusedTokens[claimToken] = totalUnused;
         return tokensBought;
     }

@@ -39,7 +39,7 @@ contract SpigotTest is Test {
         owner = address(this);
         operator = address(10);
         treasury = address(0xf1c0);
-        token = new RevenueToken();
+        token = new RevenueToken(); // 现金流token
 
         _initSpigot(address(token), 100, claimPushPaymentFunc, transferOwnerFunc, whitelist);
 
@@ -72,7 +72,6 @@ contract SpigotTest is Test {
 
 
     // Claiming functions
-
     function test_claimRevenue_PullPaymentNoTokenRevenue() public {
         _initSpigot(address(token), 100, claimPullPaymentFunc, transferOwnerFunc, whitelist);
 
@@ -138,16 +137,19 @@ contract SpigotTest is Test {
 
     /**
      * @dev helper func to check revenue payment streams to `owner` and `treasury` happened and Spigot is accounting properly.
+     Spigot 所有者和运营商之间分配收入
+     检查分配数量是否正确
     */
     function assertSpigotSplits(address _token, uint256 totalRevenue) internal {
         (uint256 maxRevenue, uint256 overflow) = getMaxRevenue(totalRevenue);
+        // 托管金额=收入*百分比
         uint256 escrowed = maxRevenue * settings.ownerSplit / 100;
 
         assertEq(
             spigot.getEscrowed(_token),
             escrowed,
             'Invalid escrow amount for spigot revenue'
-        );
+        ); // 托管金额 = 计算出来的托管数量
 
         assertEq(
             _token == Denominations.ETH ?
@@ -170,7 +172,7 @@ contract SpigotTest is Test {
         if(totalRevenue == 0 || totalRevenue > MAX_REVENUE) return;
 
         // send revenue token directly to spigot (push)
-        token.mint(address(spigot), totalRevenue);
+        token.mint(address(spigot), totalRevenue); // 理解为主动支付,直接给托管合约打钱
         assertEq(token.balanceOf(address(spigot)), totalRevenue);
         
         bytes memory claimData;
@@ -183,7 +185,7 @@ contract SpigotTest is Test {
         if(totalRevenue == 0 || totalRevenue > MAX_REVENUE) return;
         _initSpigot(address(token), 100, claimPullPaymentFunc, transferOwnerFunc, whitelist);
         
-        token.mint(revenueContract, totalRevenue); // send revenue
+        token.mint(revenueContract, totalRevenue); // send revenue 给收入合约一些钱
         bytes memory claimData = abi.encodeWithSelector(claimPullPaymentFunc);
         spigot.claimRevenue(revenueContract, address(token), claimData);
         
@@ -199,7 +201,7 @@ contract SpigotTest is Test {
         if(totalRevenue == 0 || totalRevenue > MAX_REVENUE) return;
         _initSpigot(Denominations.ETH, 100, claimPushPaymentFunc, transferOwnerFunc, whitelist);
 
-        vm.deal((address(spigot)), totalRevenue);
+        vm.deal((address(spigot)), totalRevenue); // 给托管合约ETH
         assertEq(totalRevenue, address(spigot).balance); // ensure spigot received revenue
         
         bytes memory claimData;
@@ -213,7 +215,7 @@ contract SpigotTest is Test {
         if(totalRevenue == 0 || totalRevenue > MAX_REVENUE) return;
         _initSpigot(Denominations.ETH, 100, claimPullPaymentFunc, transferOwnerFunc, whitelist);
 
-        vm.deal(revenueContract, totalRevenue);
+        vm.deal(revenueContract, totalRevenue); // 给收入合约ETH
 
         bytes memory claimData = abi.encodeWithSelector(claimPullPaymentFunc);
         assertEq(totalRevenue, spigot.claimRevenue(revenueContract, Denominations.ETH, claimData), 'invalid revenue amount claimed');
@@ -228,7 +230,7 @@ contract SpigotTest is Test {
 
         _initSpigot(Denominations.ETH, 100, claimPushPaymentFunc, transferOwnerFunc, whitelist);
 
-        deal(address(spigot), ethRevenue);
+        deal(address(spigot), ethRevenue); // 部分ETH
         deal(address(token), address(spigot), tokenRevenue);
 
         bytes memory claimData = abi.encodeWithSelector(claimPushPaymentFunc);
@@ -259,7 +261,7 @@ contract SpigotTest is Test {
 
     
     // Claim escrow 
-
+    // 从托管合约取钱
     function test_claimEscrow_AsOwner(uint256 totalRevenue) public {
         if(totalRevenue == 0 || totalRevenue > MAX_REVENUE) return;
         // send revenue and claim it
@@ -395,6 +397,7 @@ contract SpigotTest is Test {
         spigot.updateOwnerSplit(revenueContract, 0);
     }
 
+    // 更新分配份额
     function test_updateOwnerSplit_0To100(uint8 split) public {
         if(split > 100) return;
         assertTrue(spigot.updateOwnerSplit(revenueContract, split));

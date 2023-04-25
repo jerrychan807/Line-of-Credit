@@ -112,7 +112,7 @@ contract SecuredLineTest is Test {
         line.addCredit(dRate, fRate, amount, token, lender);
         vm.stopPrank();
     }
-
+    // 测试清算
     function test_can_liquidate_escrow_if_cratio_below_min() public {
         _addCredit(address(supportedToken1), 1 ether);
         uint balanceOfEscrow = supportedToken2.balanceOf(address(escrow));

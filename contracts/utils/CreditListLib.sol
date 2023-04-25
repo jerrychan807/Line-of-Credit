@@ -33,6 +33,8 @@ library CreditListLib {
 
     /**
      * @notice - removes the individual credit line id from the head of the repayment queue and puts it at end of queue
+     从还款队列的头部删除个人信用额度id，并将其放在队列的末尾
+     目的:已还款的id排到最后
      *         - moves 2nd in queue to first position in queue
      * @param ids - all current credit lines on the Line of Credit facility
      * @return newPositions - remaining credit lines after moving first to last in array

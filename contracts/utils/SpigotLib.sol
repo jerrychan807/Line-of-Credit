@@ -9,6 +9,7 @@ struct SpigotState {
     address operator;
     address treasury;
     // Total amount of revenue tokens escrowed by the Spigot and available to be claimed
+    // 由Spigot托管并可供认领的收入代币总数
     mapping(address => uint256) escrowed; // token  -> amount escrowed
     // Functions that the operator is allowed to run on all revenue contracts controlled by the Spigot
     mapping(bytes4 => bool) whitelistedFunctions; // function -> allowed
@@ -30,7 +31,7 @@ library SpigotLib {
         public
         returns (uint256 claimed)
     {
-        uint256 existingBalance = LineLib.getBalance(token);
+        uint256 existingBalance = LineLib.getBalance(token); // 查询已有余额
         if(self.settings[revenueContract].claimFunction == bytes4(0)) {
             // push payments
 
@@ -38,12 +39,13 @@ library SpigotLib {
             claimed = existingBalance - self.escrowed[token];
             // underflow revert ensures we have more tokens than we started with and actually claimed revenue
         } else {
-            // pull payments
+            // pull payments 提取
             if(bytes4(data) != self.settings[revenueContract].claimFunction) { revert BadFunction(); }
-            (bool claimSuccess,) = revenueContract.call(data);
+            (bool claimSuccess,) = revenueContract.call(data); // 调用提取函数
             if(!claimSuccess) { revert ClaimFailed(); }
 
             // claimed = total balance - existing balance
+            // 计算提取的数量
             claimed = LineLib.getBalance(token) - existingBalance;
             // underflow revert ensures we have more tokens than we started with and actually claimed revenue
         }
@@ -87,8 +89,10 @@ library SpigotLib {
         claimed = _claimRevenue(self, revenueContract, token, data);
 
         // splits revenue stream according to Spigot settings
+        // 根据配置 计算托管金额
         uint256 escrowedAmount = claimed * self.settings[revenueContract].ownerSplit / 100;
         // update escrowed balance
+        // 更新托管金额
         self.escrowed[token] = self.escrowed[token] + escrowedAmount;
         
         // send non-escrowed tokens to Treasury if non-zero
@@ -108,7 +112,7 @@ library SpigotLib {
     {
         if(msg.sender != self.owner) { revert CallerAccessDenied(); }
         
-        claimed = self.escrowed[token];
+        claimed = self.escrowed[token]; // 提取数量
 
         if(claimed == 0) { revert ClaimFailed(); }
 
@@ -152,6 +156,7 @@ library SpigotLib {
                 self.operator    // assume function only takes one param that is new owner address
             )
         );
+        // 转移所有权权限给操作者
         require(success);
 
         delete self.settings[revenueContract];

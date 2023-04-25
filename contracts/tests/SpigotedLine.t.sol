@@ -34,7 +34,7 @@ contract SpigotedLineTest is Test {
     // Named vars for common inputs
     address constant revenueContract = address(0xdebf);
     uint lentAmount = 1 ether;
-    
+
     uint128 constant dRate = 100;
     uint128 constant fRate = 1;
     uint constant ttl = 10 days; // allows us t
@@ -58,7 +58,7 @@ contract SpigotedLineTest is Test {
 
         oracle = new SimpleOracle(address(revenueToken), address(creditToken));
         spigot = new Spigot(address(this), borrower, borrower);
-        
+
         line = new SpigotedLine(
           address(oracle),
           arbiter,
@@ -68,13 +68,13 @@ contract SpigotedLineTest is Test {
           ttl,
           ownerSplit
         );
-        
+
         spigot.updateOwner(address(line));
 
         line.init();
 
         _mintAndApprove();
-        
+
         _createCredit(address(revenueToken), address(creditToken), revenueContract);
         // revenue go brrrrrrr
         spigot.claimRevenue(address(revenueContract), address(revenueToken), "");
@@ -92,16 +92,18 @@ contract SpigotedLineTest is Test {
       oracle.changePrice(creditT, int(1 ether)); // whitelist token
 
       startHoax(borrower);
+      // 添加借据
       line.addCredit(dRate, fRate, lentAmount, creditT, lender);
+      // 添加水龙头
       line.addSpigot(revenueC, setting);
       vm.stopPrank();
-      
+
       startHoax(lender);
       if(creditT != Denominations.ETH) {
         deal(creditT, lender, MAX_REVENUE);
         RevenueToken(creditT).approve(address(line), MAX_INT);
         id = line.addCredit(dRate, fRate, lentAmount, creditT, lender);
-      } else {
+      } else { // ETH
         id = line.addCredit{value: lentAmount}(dRate, fRate, lentAmount, creditT, lender);
       }
       vm.stopPrank();
@@ -120,10 +122,10 @@ contract SpigotedLineTest is Test {
 
     function _mintAndApprove() public {
       // ETH
-      deal(address(dex), MAX_REVENUE);
+      deal(address(dex), MAX_REVENUE);  // 分配ETH
       deal(address(borrower), MAX_REVENUE);
       deal(address(lender), MAX_REVENUE);
-      
+
       // seed dex with tokens to buy
       creditToken.mint(address(dex), MAX_REVENUE);
       // allow line to use tokens for depositAndRepay()
@@ -132,7 +134,7 @@ contract SpigotedLineTest is Test {
       creditToken.approve(address(line), MAX_INT);
       // allow trades
       creditToken.approve(address(dex), MAX_INT);
-      
+
 
       // tokens to trade
 
@@ -150,15 +152,15 @@ contract SpigotedLineTest is Test {
 
 
     // claimAndTrade 
-    
+
     // TODO add raw ETH tests
-
+    // 能使用获取到的利息 去交易
     function test_can_use_claimed_revenue_to_trade() public {
-      _borrow(line.ids(0), lentAmount);
+      _borrow(line.ids(0), lentAmount); // 借款
 
-      uint claimable = spigot.getEscrowed(address(revenueToken));
-
-      bytes memory tradeData = abi.encodeWithSignature(
+      uint claimable = spigot.getEscrowed(address(revenueToken)); //
+      console.log("claimable: %s", claimable);
+      bytes memory tradeData = abi.encodeWithSignature( // 构造交易参数
         'trade(address,address,uint256,uint256)',
         address(revenueToken),
         address(creditToken),
@@ -175,14 +177,14 @@ contract SpigotedLineTest is Test {
       // line balances
       assertEq(creditToken.balanceOf((address(line))), 1);
       assertEq(revenueToken.balanceOf((address(line))), MAX_REVENUE);
-      
+
     }
 
     function test_no_unused_revenue_tokens_to_trade() public {
       _borrow(line.ids(0), lentAmount);
 
       uint claimable = spigot.getEscrowed(address(revenueToken));
-      
+
       // no extra tokens besides claimable
       assertEq(line.unused(address(revenueToken)), 0);
       // Line already has tokens minted to it that we can try and steal as borrower
@@ -223,7 +225,7 @@ contract SpigotedLineTest is Test {
       spigot.claimRevenue(revenueC, address(creditT),  "");
 
       uint claimable = spigot.getEscrowed(address(revenueToken));
-      
+
       // no extra tokens besides claimable
       assertEq(line.unused(creditT), 0);
 
@@ -240,9 +242,9 @@ contract SpigotedLineTest is Test {
 
       // wierd setup bc  only way to tell if we didnt trade from outside is events/calls
       // but claimEscrow is called in both branches so can only test for DEX interacvtions
-      
+
       // we say we expect a trade event (A)
-      // then say we expect our expectation to fail (B) 
+      // then say we expect our expectation to fail (B)
       // when tokens aren't traded (C)
       vm.expectRevert("Log != expected log");  // (B)
       try line.claimAndTrade(creditT, tradeData) /* (C) */returns(uint256) {
@@ -262,7 +264,7 @@ contract SpigotedLineTest is Test {
         spigot.claimRevenue(revenueContract, address(revenueToken),  "");
         claimable = spigot.getEscrowed(address(revenueToken));
       // }
-      
+
       // no extra tokens
       assertEq(line.unused(address(creditToken)), 0);
       // Line already has tokens minted to it that we can try and steal as borrower
@@ -281,7 +283,7 @@ contract SpigotedLineTest is Test {
       vm.expectRevert(SpigotedLineLib.TradeFailed.selector);
       line.claimAndTrade(address(revenueToken), tradeData);
       (,uint p,,,,,) = line.credits(line.ids(0));
-      
+
       assertEq(p, lentAmount); // nothing repaid
 
       vm.expectRevert();
@@ -292,7 +294,7 @@ contract SpigotedLineTest is Test {
     function test_increase_unused_revenue(uint buyAmount, uint sellAmount) public {
       if(buyAmount == 0 || sellAmount == 0) return;
       if(buyAmount > MAX_REVENUE || sellAmount > MAX_REVENUE) return;
-      
+
       // need to have active position so we can buy asset
       _borrow(line.ids(0), lentAmount);
 
@@ -318,7 +320,7 @@ contract SpigotedLineTest is Test {
     function test_decrease_unused_revenue(uint buyAmount, uint sellAmount) public {
       if(buyAmount == 0 || sellAmount == 0) return;
       if(buyAmount > MAX_REVENUE || sellAmount > MAX_REVENUE) return;
-      
+
       // need to have active position so we can buy asset
       _borrow(line.ids(0), lentAmount);
 
@@ -357,7 +359,7 @@ contract SpigotedLineTest is Test {
     function test_increase_unused_debt(uint buyAmount, uint sellAmount) public {
       if(buyAmount == 0 || sellAmount == 0) return;
       if(buyAmount > MAX_REVENUE || sellAmount > MAX_REVENUE) return;
-      
+
       // need to have active position so we can buy asset
       _borrow(line.ids(0), lentAmount);
 
@@ -389,7 +391,7 @@ contract SpigotedLineTest is Test {
       // oracle prices not relevant to test
       if(buyAmount == 0 || sellAmount == 0) return;
       if(buyAmount > MAX_REVENUE || sellAmount > MAX_REVENUE) return;
-      
+
       // need to have active position so we can buy asset
       _borrow(line.ids(0), lentAmount);
 
@@ -429,12 +431,12 @@ contract SpigotedLineTest is Test {
     }
 
     // trades work
-  
+
     function test_can_trade(uint buyAmount, uint sellAmount) public {
       // oracle prices not relevant to test
       if(buyAmount == 0 || sellAmount == 0) return;
       if(buyAmount > MAX_REVENUE || sellAmount > MAX_REVENUE) return;
-      
+
       // need to have active position so we can buy asset
       _borrow(line.ids(0), lentAmount);
 
@@ -456,11 +458,11 @@ contract SpigotedLineTest is Test {
         // we properly test unused token logic elsewhere but still checking here
         assertEq(claimable - sellAmount, line.unused(address(revenueToken)));
       }
-      
+
       // dex balances
       assertEq(creditToken.balanceOf((address(dex))), MAX_REVENUE - buyAmount);
       assertEq(revenueToken.balanceOf((address(dex))), MAX_REVENUE + sellAmount);
-      
+
       // also check credit balances;
       assertEq(creditToken.balanceOf((address(line))), buyAmount);
       assertEq(revenueToken.balanceOf((address(line))), MAX_REVENUE + claimable - sellAmount);
@@ -549,7 +551,7 @@ contract SpigotedLineTest is Test {
       if(buyAmount >= MAX_REVENUE || sellAmount >= MAX_REVENUE) return;
 
       _borrow(line.ids(0), lentAmount);
-      
+
       // no interest charged because no blocks processed
       uint256 interest = 0;
 
@@ -573,7 +575,7 @@ contract SpigotedLineTest is Test {
       console.log(buyAmount);
       console.log(sellAmount);
       line.claimAndRepay(address(revenueToken), tradeData);
-      
+
 
       // principal, interest, repaid
       (,uint p, uint i, uint r,,,) = line.credits(line.ids(0));
@@ -601,10 +603,10 @@ contract SpigotedLineTest is Test {
       uint unusedCreditToken =  buyAmount < lentAmount ? 0 : buyAmount - lentAmount;
       uint unusedRevenueToken = sellAmount > claimable ? 0 : claimable - sellAmount;
       assertEq(line.unused(address(creditToken)), unusedCreditToken, "2nd to last assert");
-      
+
       assertEq(line.unused(address(revenueToken)), unusedRevenueToken, "last assert");
     }
-    
+
     // write tests for unused tokens
 
     // check unsused balances. Do so by changing minAmountOut in trade 0
@@ -629,7 +631,7 @@ contract SpigotedLineTest is Test {
       assertFalse(line.releaseSpigot(arbiter));
     }
 
-    function test_release_spigot_to_borrower_when_repaid() public {  
+    function test_release_spigot_to_borrower_when_repaid() public {
       vm.startPrank(borrower);
       line.close(line.ids(0));
       vm.stopPrank();
@@ -640,7 +642,7 @@ contract SpigotedLineTest is Test {
       assertEq(spigot.owner(), borrower);
     }
 
-    function test_only_borrower_release_spigot_when_repaid() public {  
+    function test_only_borrower_release_spigot_when_repaid() public {
       vm.startPrank(borrower);
       line.close(line.ids(0));
       vm.stopPrank();
@@ -649,7 +651,7 @@ contract SpigotedLineTest is Test {
       line.releaseSpigot(borrower);
     }
 
-    function test_release_spigot_to_arbiter_when_liquidated() public {  
+    function test_release_spigot_to_arbiter_when_liquidated() public {
       vm.warp(ttl+1);
 
       assertTrue(line.releaseSpigot(arbiter));
@@ -658,7 +660,7 @@ contract SpigotedLineTest is Test {
     }
 
 
-    function test_only_arbiter_release_spigot_when_liquidated() public {  
+    function test_only_arbiter_release_spigot_when_liquidated() public {
       vm.warp(ttl+1);
 
       hoax(lender);
@@ -672,7 +674,7 @@ contract SpigotedLineTest is Test {
     function test_cant_sweep_tokens_while_active() public {
       _borrow(line.ids(0), lentAmount);
       uint claimed = (MAX_REVENUE * ownerSplit) / 100; // expected claim amountd tokens for test
-      // create unused tokens      
+      // create unused tokens
       bytes memory tradeData = abi.encodeWithSignature(
         'trade(address,address,uint256,uint256)',
         address(revenueToken),
@@ -701,7 +703,7 @@ contract SpigotedLineTest is Test {
     function test_cant_sweep_tokens_when_repaid_as_anon() public {
       _borrow(line.ids(0), lentAmount);
       uint claimed = (MAX_REVENUE * ownerSplit) / 100; // expected claim amountd tokens for test
-      // create unused tokens      
+      // create unused tokens
       bytes memory tradeData = abi.encodeWithSignature(
         'trade(address,address,uint256,uint256)',
         address(revenueToken),
@@ -709,7 +711,7 @@ contract SpigotedLineTest is Test {
         claimed - 1,
         lentAmount + 1 ether // give excess tokens so we can sweep with out UsedExcess error
       );
-      
+
       hoax(borrower);
       line.claimAndRepay(address(revenueToken), tradeData);
       bytes32 id = line.ids(0);
@@ -736,7 +738,7 @@ contract SpigotedLineTest is Test {
 
       vm.prank(borrower);
       line.claimAndRepay(address(revenueToken), tradeData);
-      
+
       bytes32 id = line.ids(0);
       hoax(borrower);
       line.close(id);
@@ -746,7 +748,7 @@ contract SpigotedLineTest is Test {
       assertEq(balance, MAX_REVENUE + ((MAX_REVENUE * 9) / 10) + 1); // tbh idk y its +1 here
 
 
-      uint unused = line.unused(address(revenueToken)); 
+      uint unused = line.unused(address(revenueToken));
       hoax(borrower);
       uint swept = line.sweep(address(borrower), address(revenueToken));
 
@@ -781,7 +783,7 @@ contract SpigotedLineTest is Test {
     function test_sweep_to_arbiter_when_liquidated() public {
       _borrow(line.ids(0), lentAmount);
 
-      uint claimed = (MAX_REVENUE * ownerSplit) / 100; // expected claim amount 
+      uint claimed = (MAX_REVENUE * ownerSplit) / 100; // expected claim amount
 
       hoax(borrower);
       bytes memory tradeData = abi.encodeWithSignature(
@@ -791,7 +793,7 @@ contract SpigotedLineTest is Test {
         claimed - 1,
         lentAmount
       );
-      line.claimAndRepay(address(revenueToken), tradeData); 
+      line.claimAndRepay(address(revenueToken), tradeData);
       vm.stopPrank();
 
       assertEq(uint(line.status()), uint(LineLib.STATUS.ACTIVE));
@@ -800,7 +802,7 @@ contract SpigotedLineTest is Test {
       uint unused = line.unused(address(revenueToken));
 
       vm.warp(ttl+1);          // set to liquidatable
-      
+
       uint swept = line.sweep(address(this), address(revenueToken));
       assertEq(swept, unused); // all unused sent to arbiter
       assertEq(swept, 1);      // untraded revenue
@@ -820,9 +822,9 @@ contract SpigotedLineTest is Test {
         claimed - 1,
         lentAmount + 1 ether // give excess tokens so we can sweep with out UsedExcess error
       );
-     
+
       line.claimAndTrade(address(revenueToken), tradeData);
-     
+
       vm.warp(ttl+1);
       vm.startPrank(arbiter);
       line.sweep(arbiter, address(creditToken));
@@ -841,20 +843,20 @@ contract SpigotedLineTest is Test {
         claimed - 1,
         lentAmount + 1 ether // give excess tokens so we can sweep with out UsedExcess error
       );
-     
+
       line.claimAndTrade(address(revenueToken), tradeData);
       vm.warp(ttl+1);
 
       line.releaseSpigot(arbiter);
-      
+
       vm.startPrank(arbiter);
       spigot.updateOwner(address(30));
       line.declareInsolvent();
-      
+
       assertEq(uint8(line.status()), uint8(LineLib.STATUS.INSOLVENT));
-      
+
       line.sweep(arbiter, address(creditToken));
-      
+
     }
 
     function test_new_owner_when_spigot_released() public {
@@ -870,12 +872,12 @@ contract SpigotedLineTest is Test {
         claimed - 1,
         lentAmount + 1 ether // give excess tokens so we can sweep with out UsedExcess error
       );
-     
+
       line.claimAndTrade(address(revenueToken), tradeData);
       vm.warp(ttl+1);
 
       line.releaseSpigot(arbiter);
-      
+
       vm.startPrank(arbiter);
 
       address new_owner = address(30);
@@ -912,7 +914,7 @@ contract SpigotedLineTest is Test {
       // validate original settings
       (uint8 split,,) = spigot.getSetting(revenueContract);
       assertEq(split, ownerSplit);
-      
+
       // fast forward to past deadline
       vm.warp(ttl+1);
 
@@ -946,7 +948,7 @@ contract SpigotedLineTest is Test {
       // validate original settings
       (uint8 split,,) = spigot.getSetting(revenueContract);
       assertEq(split, ownerSplit);
-      
+
       // fast forward to past deadline
       vm.warp(ttl+1);
 
@@ -1015,19 +1017,19 @@ contract SpigotedLineTest is Test {
 
     function test_cant_use_and_repay_if_unauthorized() public {
       _borrow(line.ids(0), lentAmount);
-      
+
       // random user
       vm.prank(makeAddr("alice"));
       vm.expectRevert(ILineOfCredit.CallerAccessDenied.selector);
       line.useAndRepay(1);
-      
+
       // arbiter can't useAndRepay
       vm.prank(arbiter);
       vm.expectRevert(ILineOfCredit.CallerAccessDenied.selector);
       line.useAndRepay(1);
     }
-    
-    
+
+
     function test_lender_can_use_and_repay() public {
       deal(address(lender), lentAmount + 1 ether);
       deal(address(revenueToken), MAX_REVENUE);
@@ -1051,10 +1053,10 @@ contract SpigotedLineTest is Test {
       (, uint256 principal,,,,,) = line.credits(line.ids(0));
       assertEq(principal, 0);
     }
-    
+
     function test_cant_claim_and_repay_if_unauthorized() public {
       _borrow(line.ids(0), lentAmount);
-      
+
       bytes memory tradeData = abi.encodeWithSignature(
         'trade(address,address,uint256,uint256)',
         address(revenueToken),
@@ -1067,16 +1069,16 @@ contract SpigotedLineTest is Test {
       vm.prank(makeAddr("alice"));
       vm.expectRevert(ILineOfCredit.CallerAccessDenied.selector);
       line.claimAndRepay(address(revenueToken), tradeData);
-      
+
       // arbiter can't claim and repay
       vm.prank(arbiter);
       vm.expectRevert(ILineOfCredit.CallerAccessDenied.selector);
       line.claimAndRepay(address(revenueToken), tradeData);
     }
-    
+
     function test_lender_can_claim_and_repay() public {
       _borrow(line.ids(0), lentAmount);
-      
+
       bytes memory tradeData = abi.encodeWithSignature(
         'trade(address,address,uint256,uint256)',
         address(revenueToken),

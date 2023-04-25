@@ -37,16 +37,16 @@ abstract contract MutualConsent {
 
     function _mutualConsent(address _signerOne, address _signerTwo) internal returns(bool) {
         if(msg.sender != _signerOne && msg.sender != _signerTwo) { revert Unauthorized(); }
-
+        // nonCaller 还没调用的人
         address nonCaller = _getNonCaller(_signerOne, _signerTwo);
 
         // The consent hash is defined by the hash of the transaction call data and sender of msg,
         // which uniquely identifies the function, arguments, and sender.
         bytes32 expectedHash = keccak256(abi.encodePacked(msg.data, nonCaller));
-
+        // hash由msg.data和一个地址构成
         if (!mutualConsents[expectedHash]) {
             bytes32 newHash = keccak256(abi.encodePacked(msg.data, msg.sender));
-
+            // 把对方的能够生成的 标识设置为true,当对方调用的时候，算出来的标识符就是为true
             mutualConsents[newHash] = true;
 
             emit MutualConsentRegistered(newHash);

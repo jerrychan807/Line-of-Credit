@@ -8,9 +8,12 @@ interface ILineOfCredit {
   struct Credit {
     //  all denominated in token, not USD
     uint256 deposit;          // The total liquidity provided by a Lender in a given token on a Line of Credit
-    uint256 principal;        // The amount of a Lender's Deposit on a Line of Credit that has actually been drawn down by the Borrower (USD)
+    // 贷款者在给定信用额度的代币中提供的总流动性
+    uint256 principal;        // The amount of a Lender's Deposit on a Line of Credit that has actually been drawn down by the Borrower (USD) 贷款人在信用额度上实际已被借款人提取的存款金额(美元)  本金
     uint256 interestAccrued;  // Interest due by a Borrower but not yet repaid to the Line of Credit contract
+    // 借款人到期但尚未偿还给信用额度合同的利息
     uint256 interestRepaid;   // Interest repaid by a Borrower to the Line of Credit contract but not yet withdrawn by a Lender
+    // 借款人向信贷额度合同偿还但贷款人尚未提取的利息
     uint8 decimals;           // Decimals of Credit Token for calcs
     address token;            // The token being lent out (Credit Token)
     address lender;           // The person to repay

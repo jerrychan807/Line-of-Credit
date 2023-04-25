@@ -29,6 +29,8 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
     InterestRateCredit public immutable interestRate;
 
     uint256 private count; // amount of open credit lines on a Line of Credit facility. ids.length includes null items
+    // 仍存在信贷额度的数量
+    // 每添加一个信贷额度,这个统计数量就会+1
 
     bytes32[] public ids; // all open credit lines
 
@@ -81,6 +83,10 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
     }
 
     modifier whileBorrowing() {
+        // 判断是否正在借款中
+        // count == 0, 信用贷款数量为0
+        // credits[ids[0]].principal == 0,信用贷款序列中，第一个信贷的本金为0
+        // 看一下还款
         if(count == 0 || credits[ids[0]].principal == 0) { revert NotBorrowing(); }
         _;
     }
@@ -118,6 +124,7 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
         return (count, ids.length);
     }
 
+    //
     function _healthcheck() internal virtual returns (LineLib.STATUS) {
         // if line is in a final end state then do not run _healthcheck()
         LineLib.STATUS s = status;
@@ -127,8 +134,10 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
         ) {
             return s;
         }
+        // 状态不是结束状态,REPAID或INSOLVENT
 
         // Liquidate if all credit lines aren't closed by deadline
+        // 超过结束时间 且 欠款凭证还存在
         if (block.timestamp >= deadline && count > 0) {
             emit Default(ids[0]); // can query all defaulted positions offchain once event picked up
             return LineLib.STATUS.LIQUIDATABLE;
@@ -140,14 +149,16 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
 
 
     /// see ILineOfCredit.declareInsolvent
+    // Arbiter 表示借款人无法永久偿还债务（用于担保贷款）
+    // 清算人更新状态为 破产
     function declareInsolvent() external whileBorrowing returns(bool) {
-        if(arbiter != msg.sender) { revert CallerAccessDenied(); }
+        if(arbiter != msg.sender) { revert CallerAccessDenied(); } // 只允许清算人调用
         if(LineLib.STATUS.LIQUIDATABLE != _updateStatus(_healthcheck())) {
             revert NotLiquidatable();
-        }
+        } // 检查当前状态,要求状态为LIQUIDATABLE, 超过还款时间但欠款还在
 
         if(_canDeclareInsolvent()) {
-            _updateStatus(LineLib.STATUS.INSOLVENT);
+            _updateStatus(LineLib.STATUS.INSOLVENT); // 更新状态为INSOLVENT 破产
             return true;
         } else {
           return false;
@@ -159,6 +170,7 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
         return true;
     }
 
+    // 返回所有贷款人的借款人总债务
     /// see ILineOfCredit.updateOutstandingDebt
     function updateOutstandingDebt() external override returns (uint256, uint256) {
         return _updateOutstandingDebt();
@@ -175,7 +187,7 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
         bytes32 id;
         address oracle_ = address(oracle);  // gas savings
         address interestRate_ = address(interestRate); // gas savings
-        
+        // @audit ids.length有限制么 外部可控么
         for (uint256 i; i < len; ++i) {
             id = ids[i];
 
@@ -210,6 +222,7 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
     }
 
     /**
+      在贷款人的头寸上产生象征性的利息。
       @notice - accrues token demoninated interest on a lender's position.
       @dev MUST call any time a position balance or interest rate changes
       @param credit - the lender position that is accruing interest
@@ -301,10 +314,13 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
         Credit memory credit = _accrue(credits[id], id);
 
         // Borrower deposits the outstanding balance not already repaid
+        // 总欠款等于本金+利息
         uint256 totalOwed = credit.principal + credit.interestAccrued;
+        // 划款
         LineLib.receiveTokenOrETH(credit.token, msg.sender, totalOwed);
 
         // Borrower clears the debt then closes and deletes the credit line
+        // 借款人清除债务，然后关闭并删除信用额度
         _close(_repay(credit, id, totalOwed), id);
 
         return true;
@@ -312,6 +328,7 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
 
 
     /// see ILineOfCredit.depositAndRepay
+    // 存款并还款
     function depositAndRepay(uint256 amount)
         external
         payable
@@ -319,10 +336,11 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
         whileBorrowing
         returns (bool)
     {
-        bytes32 id = ids[0];
+        bytes32 id = ids[0]; // 取首个信贷额度
         Credit memory credit = credits[id];
-        credit = _accrue(credit, id);
+        credit = _accrue(credit, id); // 累加利息
 
+        // 还款数量<= 信贷额度的本金 + 利息
         require(amount <= credit.principal + credit.interestAccrued);
 
         credits[id] = _repay(credit, id, amount);
@@ -345,23 +363,24 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
         returns (bool)
     {
         Credit memory credit = _accrue(credits[id], id);
-
+        // 数量大于 可用借款金额
         if(amount > credit.deposit - credit.principal) { revert NoLiquidity(); }
-
+        // 借贷本金增加
         credit.principal += amount;
 
         credits[id] = credit; // save new debt before healthcheck
 
         // ensure that borrowing doesnt cause Line to be LIQUIDATABLE
-        if(_updateStatus(_healthcheck()) != LineLib.STATUS.ACTIVE) { 
+        // 确保借款不会导致Line被清算
+        if(_updateStatus(_healthcheck()) != LineLib.STATUS.ACTIVE) { // 更新状态为active
             revert NotActive();
         }
-
+        // 发送借款 代币
         LineLib.sendOutTokenOrETH(credit.token, borrower, amount);
 
         emit Borrow(id, amount);
 
-        _sortIntoQ(id);
+        _sortIntoQ(id); // 先进先出、记录一下凭证id
 
         return true;
     }
@@ -389,7 +408,7 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
         Credit memory credit = credits[id];
         address b = borrower; // gas savings
         if(msg.sender != credit.lender && msg.sender != b) {
-          revert CallerAccessDenied();
+          revert CallerAccessDenied(); // 调用方为 提供资金的一方
         }
 
         // ensure all money owed is accounted for. Accrue facility fee since prinicpal was paid off
@@ -414,6 +433,7 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
 
     /**
       * @notice - updates `status` variable in storage if current status is diferent from existing status.
+      如果当前状态与现有状态不同，则更新存储中的“status”变量。
       * @dev - privileged internal function. MUST check params and logic flow before calling
       * @dev - does not save new status if it is the same as current status
       * @return status - the current status of the line after updating
@@ -469,6 +489,7 @@ contract LineOfCredit is ILineOfCredit, MutualConsent {
         credit = CreditLib.repay(credit, id, amount);
 
         // if credit line fully repaid then remove it from the repayment queue
+        // 如果信用额度已全部偿还，则将其从还款队列中删除
         if (credit.principal == 0) ids.stepQ();
 
         return credit;

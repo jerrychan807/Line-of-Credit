@@ -165,27 +165,30 @@ library CreditLib {
     * @notice called by LineOfCredit._repay during every repayment function
     * @param credit - The lender position being repaid
    */
-  function repay(
+    // 还款函数
+    // 还款金额少的话,还利息
+    // 还款金额较多的话,本金和利息都还
+    function repay(
     ILineOfCredit.Credit memory credit,
     bytes32 id,
     uint256 amount
   )
     external
     returns (ILineOfCredit.Credit memory)
-  { unchecked {
-      if (amount <= credit.interestAccrued) {
-          credit.interestAccrued -= amount;
-          credit.interestRepaid += amount;
-          emit RepayInterest(id, amount);
+  { unchecked { //  unchecked!!!
+      if (amount <= credit.interestAccrued) { // 还款数量 <= 利息
+          credit.interestAccrued -= amount; // 累加利息减少
+          credit.interestRepaid += amount; // 已支付利息增加
+          emit RepayInterest(id, amount); // 事件:只还了利息
           return credit;
       } else {
-          uint256 interest = credit.interestAccrued;
-          uint256 principalPayment = amount - interest;
+          uint256 interest = credit.interestAccrued; // 利息
+          uint256 principalPayment = amount - interest; // 偿还的本金部分
 
           // update individual credit line denominated in token
-          credit.principal -= principalPayment;
-          credit.interestRepaid += interest;
-          credit.interestAccrued = 0;
+          credit.principal -= principalPayment; // 欠款本金减少
+          credit.interestRepaid += interest; // 已支付利息增加
+          credit.interestAccrued = 0; // 累加利息归零
 
           emit RepayInterest(id, interest);
           emit RepayPrincipal(id, principalPayment);
@@ -255,7 +258,7 @@ library CreditLib {
       );
 
       // update credit line balance
-      credit.interestAccrued += accruedToken;
+      credit.interestAccrued += accruedToken; // 累计的利息
 
       emit InterestAccrued(id, accruedToken);
       return credit;
